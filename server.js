@@ -1,6 +1,77 @@
 const express = require('express')
+const mongodb = require('mongodb')
+const bcrypt = require('bcryptjs')
+
 const app = express()
 const port = process.env.PORT
-app.listen(port, ()=>{
+const MONGODB_URL = process.env.MONGODB_URL
+const MongoClient = mongodb.MongoClient
+
+app.use(express.json())
+
+
+app.post('/register', async(req, res) => {
+    let name = req.body.name
+    let email = req.body.email
+    let studentId = req.body.studentId
+    let encryptedPwd = await bcrypt.hash(req.body.password, 8)
+
+    const o = {
+        name: name,
+        email: email,
+        studentId: studentId,
+        password: encryptedPwd
+    }
+    const client = await require('./db')
+
+
+    const db = client.db('buu')
+    const r = await db.collection('users')
+        .insertOne(o)
+        .catch((err) => {
+            console.error(`Cannot insert data to users collection :${err}`)
+            return
+        })
+
+    let result = {
+        _id: o._id,
+        name: o.name,
+        email: o.email,
+        studentId: o.studentId
+    }
+    res.status(201).json(o)
+
+})
+app.post('/sign-in', async(req, res) => {
+    let email = req.body.email
+    let password = req.body.password
+
+    const client = await require('./db')
+    let db = client.db('buu')
+    let user = await db.collection('users')
+        .findOne({ email: email })
+        .catch((err) => {
+            console.error(`Cannot find users with email :${email}`)
+            res.status(500).json({ error: err })
+            return
+
+        })
+
+    if (!user) {
+        res.status(401).json({ error: `your given email has not been found ` })
+        return
+    }
+    let passwordIsValid = await bcrypt.compare(password, user.password)
+    if (!passwordIsValid) {
+        res.status(401).json({ error: `Username.Password is not match` })
+        return
+    }
+    res.status(200).json({ token: '123456789' })
+
+})
+
+
+
+app.listen(port, () => {
     console.log(`Pokemon api started at port ${port}`)
 })
